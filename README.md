@@ -11,8 +11,6 @@
 - ⏰ **08:00 定时推送（macOS LaunchAgent）**：每天早上把论文列表直接发到 Telegram
 - 🧩 **可对话定制**：附带可上手 prompt，直接跟你自己的 OpenClaw 聊着聊着就把 skill “长”出来（按你的口味改关键词、改推送渠道、改格式）
 
----
-
 ## 你是不是也有这些痛点
 
 - 😵‍💫 *“我只想看生成 / 高效化方向，结果每天被一堆无关论文淹没”*
@@ -25,9 +23,8 @@
 - ✅ **每天 8 点把“你真正关心的论文”送到你手上**
 - ✅ **看到值得精读的，直接一句话提交**
 
----
 
-## Code Is Cheap, Show Me The Prompt
+## ⚡️ Code Is Cheap, Show Me The Prompt！
 
 仅通过对话构建自己的 paper 阅读 workflow！🧠⚡️
 （下面的 prompt 可以直接丢进 OpenClaw，让它给你生成/改造这两个 skill）
