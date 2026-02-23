@@ -1,139 +1,28 @@
-# OpenClaw Paper Tools
+<h1 align="center">OpenClaw Paper Tools</h1>
 
-Automate your daily paper workflow:
+<p align="center">
+  每天刷论文很爽，但每天刷 <b>论文列表</b> 很累。
+</p>
 
-- **HF Daily Papers**: fetch + filter trending Hugging Face Papers into *Generation* and *Efficient* buckets.
-- **SwiftScholar Submitter**: submit an arXiv paper to SwiftScholar (aipaper.cc) for AI deep reading.
+这个仓库给你一套「论文工作流自动化」的小工具：
 
-Designed to be:
-- **Fast** (single command / single chat message)
-- **Automatable** (macOS LaunchAgent at 08:00)
-- **Safe** (**no keys in repo**; everything uses env vars / local config files)
-
----
-
-## Demo
-
-### 1) Get today's HF paper list
-
-```bash
-cd skills/hf-daily-papers
-python3 generator.py
-
-# output: skills/hf-daily-papers/recommendations/YYYY-MM-DD.md
-```
-
-### 2) Submit a paper for AI reading
-
-```bash
-cd skills/paper-submitter
-python3 submitter.py 2602.13515
-
-# output: a SwiftScholar paper URL
-```
+- 🧠 **HF Daily Papers**：自动抓取 Hugging Face Papers 热榜，按 *Generation* / *Efficient* 分类输出
+- 🚀 **SwiftScholar Submitter**：看到好论文，一句话提交到 SwiftScholar（aipaper.cc）生成 AI 精读
+- ⏰ **08:00 定时推送**（macOS LaunchAgent）：每天早上把论文列表直接发到 Telegram
 
 ---
 
-## Install
+## 你是不是也有这些痛点
 
-Prereqs:
-- macOS or Linux
-- Python 3
-- OpenClaw installed and logged in for your target channel (Telegram / etc.)
+- 😵‍💫 *“我只想看生成 / 高效化方向，结果每天被一堆无关论文淹没”*
+- 🕳️ *“收藏夹堆到爆炸，真正精读的永远是明天”*
+- 🤯 *“好不容易看到一篇对的，还要复制链接、找工具、粘贴、提交……”*
+- 🧱 *“定时任务最烦：PATH、代理、环境变量、日志，一堆坑”*
 
-Optional PDF support:
+这套工具的目标就一句话：
 
-```bash
-pip3 install fpdf
-```
-
----
-
-## Configuration (No Secrets Committed)
-
-### SwiftScholar API key
-
-Use either:
-
-1) Save it locally (recommended):
-
-```bash
-cd skills/paper-submitter
-python3 submitter.py --save-key YOUR_SWIFTSCHOLAR_API_KEY
-```
-
-2) Or set env var:
-
-```bash
-export SWIFTSCHOLAR_API_KEY="YOUR_SWIFTSCHOLAR_API_KEY"
-```
-
-### (Optional) Notion sync
-
-If you want every submission to also create a row in a Notion database:
-
-```bash
-export NOTION_API_KEY="ntn_xxx"
-export NOTION_PAPERS_DB_ID="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-```
-
-### (Optional) Proxy
-
-If your network needs a proxy to access Hugging Face:
-
-```bash
-export HF_DAILY_PAPERS_PROXY="http://127.0.0.1:7897"
-```
-
----
-
-## Automate: macOS LaunchAgent (08:00 every day)
-
-This repo ships a template:
-- `launchd/ai.openclaw.hf-daily-papers.plist`
-
-Steps:
-
-1) Copy it to `~/Library/LaunchAgents/` and edit:
-- the absolute path to `run_and_send.sh`
-- `TELEGRAM_TARGET`
-
-2) Load it:
-
-```bash
-UID=$(id -u)
-launchctl bootstrap gui/$UID ~/Library/LaunchAgents/ai.openclaw.hf-daily-papers.plist
-launchctl enable gui/$UID/ai.openclaw.hf-daily-papers
-```
-
-3) Test immediately:
-
-```bash
-launchctl kickstart -k gui/$(id -u)/ai.openclaw.hf-daily-papers
-```
-
-Logs (as configured in the template):
-- `/tmp/ai.openclaw.hf-daily-papers.out.log`
-- `/tmp/ai.openclaw.hf-daily-papers.err.log`
-
----
-
-## What This Actually Does
-
-### HF Daily Papers
-
-- Scrapes `https://huggingface.co/papers` for recent paper IDs
-- Fetches metadata via `https://huggingface.co/api/papers/<id>`
-- Filters into two lists with simple keyword rules
-- Writes `recommendations/YYYY-MM-DD.md` (+ optional PDF)
-
-### SwiftScholar Submitter
-
-- Gets title/arXiv id from the HF paper page
-- Calls SwiftScholar API (`/api/tools/paper_submit_url`)
-- Prints a paper URL you can open in your browser
-- Optionally appends a row to `submitted_papers.md`
-- Optionally syncs to Notion
+- ✅ **每天 8 点把“你真正关心的论文”送到你手上**
+- ✅ **看到值得精读的，直接一句话提交**
 
 ---
 
@@ -142,8 +31,6 @@ Logs (as configured in the template):
 If you already run OpenClaw, you can build these as skills by *just chatting*.
 
 ### Prompt: build HF Daily Papers skill
-
-Copy/paste this into an OpenClaw chat:
 
 ```text
 Create an OpenClaw skill named "hf-daily-papers".
@@ -176,6 +63,52 @@ Keep it safe: no keys in code or docs.
 
 ---
 
-## License
+## 30 秒上手（本地跑一遍）
 
-MIT (see `LICENSE`).
+### 1) 生成今天的 HF 论文清单
+
+```bash
+cd skills/hf-daily-papers
+python3 generator.py
+
+# output: skills/hf-daily-papers/recommendations/YYYY-MM-DD.md
+```
+
+### 2) 一句话提交精读
+
+```bash
+cd skills/paper-submitter
+python3 submitter.py 2602.13515
+
+# output: SwiftScholar paper URL
+```
+
+---
+
+## 配置（不公开密钥，放心）
+
+- 🔐 本仓库 **不会** 存任何 key / token
+- 🧼 提交记录、推荐列表、日志默认都被 `.gitignore` 忽略
+
+你只需要在本地配置：
+
+- SwiftScholar：`SWIFTSCHOLAR_API_KEY` 或 `~/.config/swiftscholar/api_key.txt`
+- （可选）Notion：`NOTION_API_KEY` + `NOTION_PAPERS_DB_ID`
+- （可选）代理：`HF_DAILY_PAPERS_PROXY`
+
+详细写在：[docs/security.md](docs/security.md)
+
+---
+
+## 定时推送（macOS 08:00）
+
+你可以用 LaunchAgent 每天 08:00 自动把列表发到 Telegram。
+
+- 模板：[launchd/ai.openclaw.hf-daily-papers.plist](launchd/ai.openclaw.hf-daily-papers.plist)
+- 说明：[docs/launchagent.md](docs/launchagent.md)
+
+---
+
+更多技术细节在 docs：
+
+- [docs/README.md](docs/README.md)
