@@ -1,0 +1,25 @@
+# OpenClaw paper tools
+
+# Generated outputs
+skills/hf-daily-papers/recommendations/
+*.pdf
+launchagent.*.log
+*.log
+
+# Local state
+submitted_papers.md
+
+# Secrets
+.env
+.env.*
+*.key
+*.pem
+*.p12
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# macOS
+.DS_Store
