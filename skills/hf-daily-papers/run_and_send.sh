@@ -3,8 +3,12 @@ set -euo pipefail
 
 # Generate today's HF papers markdown, then send a compact list via OpenClaw messaging.
 #
-# Required env:
-#   TELEGRAM_TARGET   e.g. 6184653533 (user id) or @channelname
+# Required env (Feishu first):
+#   FEISHU_TARGET     e.g. chat_id/open_id/user_id per your OpenClaw channel adapter
+# Optional compatibility env:
+#   OPENCLAW_CHANNEL  default: feishu
+#   OPENCLAW_TARGET   if set, overrides FEISHU_TARGET/TELEGRAM_TARGET
+#   TELEGRAM_TARGET   backward compatibility only
 # Optional env:
 #   OPENCLAW_BIN      default: openclaw
 #   HF_DAILY_PAPERS_PROXY  e.g. http://127.0.0.1:7897
@@ -15,10 +19,11 @@ DATE_STR="$(date +%Y-%m-%d)"
 MD_FILE="${OUTDIR}/${DATE_STR}.md"
 
 OPENCLAW_BIN="${OPENCLAW_BIN:-openclaw}"
-TELEGRAM_TARGET="${TELEGRAM_TARGET:-}"
+OPENCLAW_CHANNEL="${OPENCLAW_CHANNEL:-feishu}"
+OPENCLAW_TARGET="${OPENCLAW_TARGET:-${FEISHU_TARGET:-${TELEGRAM_TARGET:-}}}"
 
-if [ -z "$TELEGRAM_TARGET" ]; then
-  echo "Missing TELEGRAM_TARGET env" >&2
+if [ -z "$OPENCLAW_TARGET" ]; then
+    echo "Missing target env. Set OPENCLAW_TARGET or FEISHU_TARGET" >&2
   exit 2
 fi
 
@@ -80,4 +85,4 @@ print(msg)
 PY
 )
 
-"$OPENCLAW_BIN" message send --channel telegram --target "$TELEGRAM_TARGET" --message "$MSG" --silent >/dev/null
+"$OPENCLAW_BIN" message send --channel "$OPENCLAW_CHANNEL" --target "$OPENCLAW_TARGET" --message "$MSG" --silent >/dev/null

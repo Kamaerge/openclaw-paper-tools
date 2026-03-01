@@ -90,6 +90,22 @@ cd skills/paper-submitter
 python3 submitter.py 2602.13515
 ```
 
+### 3) Windows + 飞书群推送（可选）
+
+```powershell
+cd skills/hf-daily-papers
+
+# 安装依赖（generator.py 会导入 fpdf）
+pip install fpdf
+
+# 单次推送测试
+$env:FEISHU_TARGET="your-feishu-chat-id"
+pwsh -File .\run_and_send.ps1
+
+# 每天 08:00 任务计划
+pwsh -File .\register_task.ps1 -FeishuTarget "your-feishu-chat-id"
+```
+
 ---
 
 ## 配置（不公开密钥，放心）
