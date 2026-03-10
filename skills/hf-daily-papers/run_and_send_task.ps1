@@ -1,0 +1,12 @@
+$env:OPENCLAW_CHANNEL = "feishu"
+$env:OPENCLAW_TARGET = "oc_c10dddb79f789d945e7d2317d5014d08"
+$env:OPENCLAW_BIN = "openclaw"
+$env:PYTHON_BIN = "python"
+$env:HF_DAILY_INTERESTS = "generation,efficient"
+$env:AUTO_SUBMIT_TOPN = "5"
+$env:USE_MULTI_SOURCE = "1"
+$env:USE_NANOPDF_ANALYZER = "1"
+$env:PYTHONUTF8 = "1"
+$env:PYTHONIOENCODING = "utf-8"
+
+& "D:\Project\openclaw-paper-tools\skills\hf-daily-papers\run_and_send.ps1"
