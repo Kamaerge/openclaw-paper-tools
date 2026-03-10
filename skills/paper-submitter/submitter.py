@@ -366,6 +366,12 @@ def main():
         save_submission(paper_info, result_url)
     else:
         print(f"\n⚠️ 提交失败")
+        # 即使提交失败，如果配置了 Notion，也尝试记录（用于自动化场景）
+        fallback_url = f"https://www.swiftscholar.net/paper/{paper_info['arxiv_id']}"
+        notion_key = os.environ.get('NOTION_API_KEY')
+        if notion_key and os.environ.get('FORCE_NOTION_SYNC'):
+            print("💾 强制触发 Notion 同步（FORCE_NOTION_SYNC=1）")
+            save_submission(paper_info, fallback_url)
 
 if __name__ == '__main__':
     main()

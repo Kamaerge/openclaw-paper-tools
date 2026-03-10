@@ -3,6 +3,7 @@
 """
 HF Daily Papers Generator
 生成 Markdown 和 PDF 格式的论文推荐报告
+支持多来源：HuggingFace, arXiv, Papers with Code
 """
 
 import os
@@ -10,7 +11,6 @@ import re
 import urllib.request
 import json
 from datetime import datetime
-from fpdf import FPDF
 
 # Optional proxy: set `HF_DAILY_PAPERS_PROXY` (e.g. http://127.0.0.1:7897) if you need it.
 _proxy = os.environ.get('HF_DAILY_PAPERS_PROXY')
@@ -18,8 +18,62 @@ if _proxy:
     os.environ['HTTP_PROXY'] = _proxy
     os.environ['HTTPS_PROXY'] = _proxy
 
+# 多源模式开关
+USE_MULTI_SOURCE = os.environ.get('USE_MULTI_SOURCE', '1') == '1'
+
+
+def parse_keywords(env_name, defaults):
+    """从环境变量读取关键词（逗号分隔），未设置则使用默认值"""
+    raw = os.environ.get(env_name, '').strip()
+    if not raw:
+        return defaults
+
+    keywords = [part.strip().lower() for part in raw.split(',') if part.strip()]
+    return keywords if keywords else defaults
+
 def fetch_papers():
-    """获取 HF Daily Papers"""
+    """获取论文（支持多源模式）"""
+    if USE_MULTI_SOURCE:
+        return fetch_papers_multi_source()
+    else:
+        return fetch_papers_huggingface_only()
+
+
+def fetch_papers_multi_source():
+    """多源模式：从 HF + arXiv + PwC 获取论文并去重"""
+    print("📥 多源模式：获取论文...")
+    
+    try:
+        from multi_source_fetcher import (
+            fetch_all_sources, 
+            load_submitted_papers, 
+            clean_old_records,
+            deduplicate_papers
+        )
+        
+        # 获取所有来源的论文
+        all_papers = fetch_all_sources()
+        
+        # 加载已推送记录并清理旧记录
+        cache_file = os.path.join(os.path.dirname(__file__), 'submitted_papers.json')
+        submitted = load_submitted_papers(cache_file)
+        submitted = clean_old_records(submitted, days=30)
+        
+        # 去重
+        new_papers = deduplicate_papers(all_papers, submitted)
+        
+        # 按 upvotes 排序（HF 论文有 upvotes，arXiv 为 0）
+        new_papers.sort(key=lambda x: (x.get('upvotes', 0), x.get('title', '')), reverse=True)
+        
+        return new_papers
+    
+    except Exception as e:
+        print(f"❌ 多源获取失败，回退到单源模式: {e}")
+        return fetch_papers_huggingface_only()
+
+
+def fetch_papers_huggingface_only():
+    """单源模式：仅从 HuggingFace Papers 获取"""
     print("📥 获取 HF Daily Papers...")
     
     # 获取页面
@@ -42,7 +96,9 @@ def fetch_papers():
                     'pid': pid,
                     'title': data.get('title', 'N/A')[:100],
                     'upvotes': data.get('upvotes', 0),
-                    'summary': data.get('summary', '')[:500].lower()
+                    'summary': data.get('summary', '')[:500].lower(),
+                    'source': 'HuggingFace',
+                    'url': f"https://huggingface.co/papers/{pid}"
                 })
         except Exception as e:
             continue
@@ -56,11 +112,30 @@ def fetch_papers():
 
 def filter_papers(papers):
     """筛选论文"""
-    gen_kw = ['diffusion', 'video', 'image', 'gan', 'generation', 'generative', 'synthesis', 'text-to', 'autoregressive']
-    eff_kw = ['efficient', 'attention', 'quant', 'sparse', 'compress', 'memory', 'compute', 'optimization']
+    # 针对特定领域的关键词：AR/VR、人机交互、时间序列、眼动追踪
+    gen_kw = parse_keywords('HF_DAILY_GEN_KEYWORDS', 
+                            ['ar', 'vr', 'augmented reality', 'virtual reality', 
+                             'interaction', 'human-computer', 'eye tracking', 'gaze', 'gaze tracking'])
+    eff_kw = parse_keywords('HF_DAILY_EFF_KEYWORDS', 
+                            ['temporal', 'time series', 'trajectory', 'sequence',
+                             'gaze', 'fixation', 'attention', 'eye movement'])
     
-    gen_papers = [p for p in papers if any(kw in p['title'].lower() or kw in p['summary'] for kw in gen_kw)]
-    eff_papers = [p for p in papers if any(kw in p['title'].lower() or kw in p['summary'] for kw in eff_kw)]
+    print(f"🔍 Primary Keywords: {gen_kw if gen_kw else '(未设置)'}")
+    print(f"🔍 Secondary Keywords: {eff_kw if eff_kw else '(未设置)'}")
+    
+    def keyword_match(text, keyword):
+        """使用单词边界匹配关键词，避免短词误报"""
+        # 对于短关键词（<=2字符），使用完整词匹配
+        if len(keyword) <= 2:
+            pattern = r'\b' + re.escape(keyword) + r'\b'
+            return bool(re.search(pattern, text, re.IGNORECASE))
+        else:
+            # 长关键词（包含多词短语）使用子串匹配
+            # 对于 'augmented reality', 'eye tracking' 等多词短语，支持部分匹配
+            return keyword.lower() in text.lower()
+    
+    gen_papers = [p for p in papers if any(keyword_match(p['title'].lower(), kw) or keyword_match(p['summary'], kw) for kw in gen_kw)]
+    eff_papers = [p for p in papers if any(keyword_match(p['title'].lower(), kw) or keyword_match(p['summary'], kw) for kw in eff_kw)]
     
     return gen_papers, eff_papers
 
@@ -69,18 +144,23 @@ def generate_markdown(gen_papers, eff_papers, output_dir, timestamp):
     date_str = datetime.now().strftime('%Y-%m-%d')
     md_file = os.path.join(output_dir, f"{date_str}.md")
     
+    # 收集所有论文 ID（用于标记为已推送）
+    all_paper_ids = [p['pid'] for p in gen_papers] + [p['pid'] for p in eff_papers]
+    
     md_content = f"""# Hugging Face Daily Papers 推荐
 
 **生成时间**: {timestamp}
+**论文来源**: {'多源聚合 (HF + arXiv + PwC)' if USE_MULTI_SOURCE else 'HuggingFace Papers'}
 
 ---
 
-## 🎨 生成领域推荐 ({len(gen_papers)} 篇)
+## 📌 主要关注领域 ({len(gen_papers)} 篇)
 
 """
     
     for i, p in enumerate(gen_papers[:15], 1):
-        md_content += f"""### [{p['pid']}](https://huggingface.co/papers/{p['pid']}) - {p['title']}
+        source_tag = f" `{p.get('source', 'HF')}`" if USE_MULTI_SOURCE else ""
+        md_content += f"""### [{p['pid']}]({p.get('url', f"https://huggingface.co/papers/{p['pid']}")}) - {p['title']}{source_tag}
 
 **Upvotes**: {p['upvotes']}
 
@@ -88,12 +168,13 @@ def generate_markdown(gen_papers, eff_papers, output_dir, timestamp):
     
     md_content += f"""
 
-## ⚡ Efficient 高效化领域推荐 ({len(eff_papers)} 篇)
+## 📎 次要关注领域 ({len(eff_papers)} 篇)
 
 """
     
     for i, p in enumerate(eff_papers[:15], 1):
-        md_content += f"""### [{p['pid']}](https://huggingface.co/papers/{p['pid']}) - {p['title']}
+        source_tag = f" `{p.get('source', 'HF')}`" if USE_MULTI_SOURCE else ""
+        md_content += f"""### [{p['pid']}]({p.get('url', f"https://huggingface.co/papers/{p['pid']}")}) - {p['title']}{source_tag}
 
 **Upvotes**: {p['upvotes']}
 
@@ -107,6 +188,17 @@ def generate_markdown(gen_papers, eff_papers, output_dir, timestamp):
         f.write(md_content)
     
     print(f"✅ Markdown: {md_file}")
+    
+    # 如果是多源模式，标记为已推送
+    if USE_MULTI_SOURCE and all_paper_ids:
+        try:
+            from multi_source_fetcher import mark_as_submitted
+            cache_file = os.path.join(os.path.dirname(__file__), 'submitted_papers.json')
+            mark_as_submitted(all_paper_ids, cache_file)
+            print(f"✅ 已标记 {len(all_paper_ids)} 篇论文为已推送")
+        except Exception as e:
+            print(f"⚠️ 标记已推送失败: {e}")
+    
     return md_file
 
 def generate_pdf(gen_papers, eff_papers, output_dir, timestamp):
@@ -128,10 +220,10 @@ def generate_pdf(gen_papers, eff_papers, output_dir, timestamp):
     pdf.cell(0, 8, f'Generated: {timestamp}', ln=True)
     pdf.ln(5)
     
-    # 生成领域
+    # 主要关注领域
     pdf.set_font('Arial', 'B', 14)
     pdf.set_fill_color(230, 240, 255)
-    pdf.cell(0, 10, f'Generation Domain ({len(gen_papers)} papers)', ln=True, fill=True)
+    pdf.cell(0, 10, f'Primary Focus ({len(gen_papers)} papers)', ln=True, fill=True)
     pdf.ln(3)
     pdf.set_font('Arial', '', 9)
     
@@ -147,10 +239,10 @@ def generate_pdf(gen_papers, eff_papers, output_dir, timestamp):
     
     pdf.ln(5)
     
-    # Efficient 领域
+    # 次要关注领域
     pdf.set_font('Arial', 'B', 14)
     pdf.set_fill_color(240, 250, 230)
-    pdf.cell(0, 10, f'Efficient Domain ({len(eff_papers)} papers)', ln=True, fill=True)
+    pdf.cell(0, 10, f'Secondary Focus ({len(eff_papers)} papers)', ln=True, fill=True)
     pdf.ln(3)
     pdf.set_font('Arial', '', 9)
     
